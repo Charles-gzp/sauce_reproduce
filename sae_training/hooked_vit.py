@@ -103,28 +103,38 @@ class Hook:
 
 
 class HookedVisionTransformer:
-    def __init__(self, model_name: str, device="cuda", vlm_family: str = "clip"):
+    def __init__(
+        self,
+        model_name: str,
+        device="cuda",
+        vlm_family: str = "clip",
+        torch_dtype=None,
+    ):
         self.vlm_family = vlm_family
-        # 按配置加载 CLIP/LLaVA/LLama-Vision。
-        model, processor = self.get_ViT(model_name, vlm_family=vlm_family)
+        # 按配置加载 CLIP/LLaVA/LLama-Vision，并使用指定精度减少显存。
+        model, processor = self.get_ViT(model_name, vlm_family=vlm_family, torch_dtype=torch_dtype)
         self.model = model.to(device)
         self.processor = processor
 
-    def get_ViT(self, model_name, vlm_family: str = "clip"):
+    def get_ViT(self, model_name, vlm_family: str = "clip", torch_dtype=None):
         transformers_mod = importlib.import_module("transformers")
+        load_kwargs = {}
+        if torch_dtype is not None:
+            load_kwargs["torch_dtype"] = torch_dtype
+            load_kwargs["low_cpu_mem_usage"] = True
         if vlm_family == "clip":
             # 明确使用 CLIP 类，避免 AutoModel 丢失对比输出。
             if hasattr(transformers_mod, "CLIPModel") and hasattr(transformers_mod, "CLIPProcessor"):
-                model = transformers_mod.CLIPModel.from_pretrained(model_name)
+                model = transformers_mod.CLIPModel.from_pretrained(model_name, **load_kwargs)
                 processor = transformers_mod.CLIPProcessor.from_pretrained(model_name)
                 return model, processor
-            model = AutoModel.from_pretrained(model_name)
+            model = AutoModel.from_pretrained(model_name, **load_kwargs)
             processor = AutoProcessor.from_pretrained(model_name)
             return model, processor
         if vlm_family == "llava":
             # 优先使用 LLaVA 专用类，兼容性更好。
             if hasattr(transformers_mod, "LlavaForConditionalGeneration") and hasattr(transformers_mod, "LlavaProcessor"):
-                model = transformers_mod.LlavaForConditionalGeneration.from_pretrained(model_name)
+                model = transformers_mod.LlavaForConditionalGeneration.from_pretrained(model_name, **load_kwargs)
                 processor = transformers_mod.LlavaProcessor.from_pretrained(model_name)
                 return model, processor
             model = _try_load_multimodal_model(model_name)
@@ -133,7 +143,7 @@ class HookedVisionTransformer:
         if vlm_family == "llama_vision":
             # Llama-3.2-Vision 对应的 HF 类名可能为 Mllama*。
             if hasattr(transformers_mod, "MllamaForConditionalGeneration"):
-                model = transformers_mod.MllamaForConditionalGeneration.from_pretrained(model_name)
+                model = transformers_mod.MllamaForConditionalGeneration.from_pretrained(model_name, **load_kwargs)
                 processor = AutoProcessor.from_pretrained(model_name)
                 return model, processor
             model = _try_load_multimodal_model(model_name)

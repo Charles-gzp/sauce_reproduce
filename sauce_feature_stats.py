@@ -40,7 +40,13 @@ def main():
     # 加载 SAE 与对应 VLM。
     sae = SparseAutoencoder.load_from_pretrained(args.sae_path).eval()
     cfg = sae.cfg
-    model = HookedVisionTransformer(cfg.model_name, device=str(cfg.device), vlm_family=cfg.vlm_family)
+    # 按训练配置选择对应的 VLM 家族（CLIP/LLaVA），并使用相同精度。
+    model = HookedVisionTransformer(
+        cfg.model_name,
+        device=str(cfg.device),
+        vlm_family=cfg.vlm_family,
+        torch_dtype=cfg.dtype,
+    )
     model.eval()
 
     # 加载数据集（ImageNet-1k）。

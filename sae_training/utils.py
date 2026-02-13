@@ -62,8 +62,12 @@ class ViTSparseAutoencoderSessionloader():
         
         # Todo: add check that model_name is valid
         
-        # 这里根据配置选择 CLIP/LLaVA 路径。
-        model = HookedVisionTransformer(model_name, vlm_family=self.cfg.vlm_family)
+        # 这里根据配置选择 CLIP/LLaVA 路径，并用 cfg.dtype 控制精度。
+        model = HookedVisionTransformer(
+            model_name,
+            vlm_family=self.cfg.vlm_family,
+            torch_dtype=self.cfg.dtype,
+        )
         model.eval()
         
         return model 

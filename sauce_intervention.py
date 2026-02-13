@@ -38,11 +38,12 @@ def main():
     if args.device is not None:
         sae = sae.to(args.device)
 
-    # 按训练配置选择对应的 VLM 家族（CLIP/LLaVA）。
+    # 按训练配置选择对应的 VLM 家族（CLIP/LLaVA），并使用相同精度。
     model = HookedVisionTransformer(
         sae.cfg.model_name,
         device=str(sae.cfg.device),
         vlm_family=sae.cfg.vlm_family,
+        torch_dtype=sae.cfg.dtype,
     )
     model.eval()
 

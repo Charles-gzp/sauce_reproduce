@@ -60,8 +60,13 @@ def main():
     cfg = sae.cfg
     prompt = args.prompt if args.prompt is not None else (cfg.image_caption_prompt or "Please describe this figure")
 
-    # 按训练配置选择对应的 VLM 家族（CLIP/LLaVA）。
-    model = HookedVisionTransformer(cfg.model_name, device=str(cfg.device), vlm_family=cfg.vlm_family)
+    # 按训练配置选择对应的 VLM 家族（CLIP/LLaVA），并使用相同精度。
+    model = HookedVisionTransformer(
+        cfg.model_name,
+        device=str(cfg.device),
+        vlm_family=cfg.vlm_family,
+        torch_dtype=cfg.dtype,
+    )
     model.eval()
 
     pos_paths = list_images(Path(args.pos_dir))

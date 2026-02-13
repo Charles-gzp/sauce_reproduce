@@ -1,0 +1,19 @@
+{
+  "concepts": [
+    {
+      "name": "tennis",
+      "domain": "sport",
+      "source_dir": "D:/data/sauce_raw/sport/tennis"
+    },
+    {
+      "name": "red",
+      "domain": "color",
+      "source_dir": "D:/data/sauce_raw/color/red"
+    },
+    {
+      "name": "dog",
+      "domain": "object",
+      "source_dir": "D:/data/sauce_raw/object/dog"
+    }
+  ]
+}

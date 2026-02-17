@@ -11,6 +11,7 @@ cd "$ROOT_DIR"
 CONCEPT="${CONCEPT:-dog}"
 SAE_PATH="${SAE_PATH:-}"
 DATASET_PATH="${DATASET_PATH:-evanarlian/imagenet_1k_resized_256}"
+SPLIT="${SPLIT:-validation}"
 OUT_ROOT="${OUT_ROOT:-concepts}"
 PIPE_OUT_ROOT="${PIPE_OUT_ROOT:-sauce_outputs}"
 TOP_K="${TOP_K:-128}"
@@ -28,6 +29,7 @@ echo "[1/2] Exporting ImageNet concept samples..."
 "$PYTHON_BIN" sauce_export_imagenet_concept.py \
   --concept "$CONCEPT" \
   --dataset-path "$DATASET_PATH" \
+  --split "$SPLIT" \
   --out-root "$OUT_ROOT"
 
 POS_DIR="$OUT_ROOT/$CONCEPT/pos_train"

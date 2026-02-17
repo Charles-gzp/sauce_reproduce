@@ -39,6 +39,7 @@ Required variable:
 Optional variables:
 - `CONCEPT` (default `dog`)
 - `DATASET_PATH` (default `evanarlian/imagenet_1k_resized_256`)
+- `SPLIT` (default `validation`, script auto-maps to `val` when needed)
 - `OUT_ROOT` (default `concepts`)
 - `PIPE_OUT_ROOT` (default `sauce_outputs`)
 - `TOP_K` (default `128`)

@@ -4,7 +4,7 @@ import random
 from pathlib import Path
 from typing import List
 
-from datasets import load_dataset
+from datasets import get_dataset_split_names, load_dataset
 
 
 def parse_args():
@@ -16,7 +16,7 @@ def parse_args():
         default="evanarlian/imagenet_1k_resized_256",
         help="HF dataset path",
     )
-    parser.add_argument("--split", type=str, default="validation", help="Dataset split")
+    parser.add_argument("--split", type=str, default="validation", help="Dataset split (e.g., validation/val)")
     parser.add_argument("--pos-train", type=int, default=200, help="Positive train images")
     parser.add_argument("--pos-test", type=int, default=50, help="Positive test images")
     parser.add_argument("--neg-train", type=int, default=200, help="Negative train images")
@@ -24,6 +24,27 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--out-root", type=str, default="concepts", help="Output root directory")
     return parser.parse_args()
+
+
+def resolve_split(dataset_path: str, requested_split: str) -> str:
+    # Support common split aliases across different ImageNet mirrors.
+    split_names = get_dataset_split_names(dataset_path)
+    if requested_split in split_names:
+        return requested_split
+
+    alias_map = {
+        "validation": "val",
+        "valid": "val",
+        "dev": "val",
+        "val": "validation",
+    }
+    mapped = alias_map.get(requested_split)
+    if mapped is not None and mapped in split_names:
+        return mapped
+
+    raise ValueError(
+        f'Unknown split "{requested_split}". Available splits: {split_names}'
+    )
 
 
 def label_match(label_names: List[str], keyword: str) -> List[bool]:
@@ -42,8 +63,9 @@ def main():
     args = parse_args()
     random.seed(args.seed)
 
-    # Load ImageNet validation split and collect class names.
-    ds = load_dataset(args.dataset_path, split=args.split)
+    # Load ImageNet split and collect class names.
+    resolved_split = resolve_split(args.dataset_path, args.split)
+    ds = load_dataset(args.dataset_path, split=resolved_split)
     if "label" not in ds.features or "image" not in ds.features:
         raise ValueError("Dataset must contain both 'label' and 'image' columns.")
 
@@ -89,6 +111,7 @@ def main():
         "concept": args.concept,
         "dataset_path": args.dataset_path,
         "split": args.split,
+        "resolved_split": resolved_split,
         "seed": args.seed,
         "pos_train": args.pos_train,
         "pos_test": args.pos_test,

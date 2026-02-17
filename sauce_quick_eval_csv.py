@@ -208,9 +208,19 @@ def main():
         if edited_captions is not None:
             fieldnames += ["edited_caption", "edited_contains_dog"]
     else:
-        fieldnames += ["baseline_yes_logit", "baseline_no_logit", "baseline_pred_yes"]
+        fieldnames += [
+            "baseline_yes_logit",
+            "baseline_no_logit",
+            "baseline_margin",
+            "baseline_pred_yes",
+        ]
         if edited_preds is not None:
-            fieldnames += ["edited_yes_logit", "edited_no_logit", "edited_pred_yes"]
+            fieldnames += [
+                "edited_yes_logit",
+                "edited_no_logit",
+                "edited_margin",
+                "edited_pred_yes",
+            ]
 
     with out_csv.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -226,10 +236,12 @@ def main():
             else:
                 row["baseline_yes_logit"] = baseline_yes[i]
                 row["baseline_no_logit"] = baseline_no[i]
+                row["baseline_margin"] = baseline_yes[i] - baseline_no[i]
                 row["baseline_pred_yes"] = bool(baseline_preds[i])
                 if edited_preds is not None:
                     row["edited_yes_logit"] = edited_yes[i]
                     row["edited_no_logit"] = edited_no[i]
+                    row["edited_margin"] = edited_yes[i] - edited_no[i]
                     row["edited_pred_yes"] = bool(edited_preds[i])
             writer.writerow(row)
 
@@ -246,6 +258,12 @@ def main():
         if edited_preds is not None:
             edited_yes_count = sum(bool(x) for x in edited_preds)
             print(f"Edited predicted Yes: {edited_yes_count}/{len(edited_preds)}")
+            mean_delta_yes = sum(ey - by for ey, by in zip(edited_yes, baseline_yes)) / len(edited_yes)
+            mean_delta_no = sum(en - bn for en, bn in zip(edited_no, baseline_no)) / len(edited_no)
+            mean_delta_margin = sum((ey - en) - (by - bn) for ey, en, by, bn in zip(edited_yes, edited_no, baseline_yes, baseline_no)) / len(edited_yes)
+            print(f"Mean delta yes_logit: {mean_delta_yes:.6f}")
+            print(f"Mean delta no_logit: {mean_delta_no:.6f}")
+            print(f"Mean delta margin (yes-no): {mean_delta_margin:.6f}")
 
 
 if __name__ == "__main__":

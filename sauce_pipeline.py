@@ -13,6 +13,14 @@ def parse_args():
     parser.add_argument("--out-dir", type=str, default="sauce_outputs", help="Output directory.")
     parser.add_argument("--prompt", type=str, default="Please describe this figure", help="Prompt for multimodal forward.")
     parser.add_argument("--gamma", type=float, default=-0.5, help="Intervention scale.")
+    parser.add_argument(
+        "--acts-batch-size",
+        type=int,
+        default=4,
+        help="Batch size used when extracting token activations (reduce to avoid OOM).",
+    )
+    parser.add_argument("--max-pos", type=int, default=0, help="If >0, limit number of positive images.")
+    parser.add_argument("--max-neg", type=int, default=0, help="If >0, limit number of negative images.")
     parser.add_argument("--example-image", type=str, default=None, help="Optional test image path for intervention smoke test.")
     return parser.parse_args()
 
@@ -43,6 +51,12 @@ def main():
             str(out_dir),
             "--prompt",
             args.prompt,
+            "--batch-size",
+            str(args.acts_batch_size),
+            "--max-pos",
+            str(args.max_pos),
+            "--max-neg",
+            str(args.max_neg),
         ]
     )
 

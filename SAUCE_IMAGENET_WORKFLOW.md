@@ -43,6 +43,8 @@ Optional variables:
 - `OUT_ROOT` (default `concepts`)
 - `PIPE_OUT_ROOT` (default `sauce_outputs`)
 - `TOP_K` (default `128`)
+- `ACTS_BATCH_SIZE` (default `4`, lower this when activation extraction OOMs)
+- `MAX_POS` / `MAX_NEG` (default `0`, use small values for quick debugging)
 
 Example:
 ```bash

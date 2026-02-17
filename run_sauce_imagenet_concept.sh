@@ -17,6 +17,9 @@ PIPE_OUT_ROOT="${PIPE_OUT_ROOT:-sauce_outputs}"
 TOP_K="${TOP_K:-128}"
 PROMPT="${PROMPT:-Please describe this figure}"
 GAMMA="${GAMMA:--0.5}"
+ACTS_BATCH_SIZE="${ACTS_BATCH_SIZE:-4}"
+MAX_POS="${MAX_POS:-0}"
+MAX_NEG="${MAX_NEG:-0}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 
 if [[ -z "$SAE_PATH" ]]; then
@@ -45,6 +48,9 @@ echo "[2/2] Running SAUCE pipeline..."
   --top-k "$TOP_K" \
   --out-dir "$PIPE_OUT_DIR" \
   --prompt "$PROMPT" \
+  --acts-batch-size "$ACTS_BATCH_SIZE" \
+  --max-pos "$MAX_POS" \
+  --max-neg "$MAX_NEG" \
   --gamma "$GAMMA" \
   --example-image "$EXAMPLE_IMAGE"
 

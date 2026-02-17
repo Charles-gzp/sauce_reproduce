@@ -29,6 +29,8 @@ This document maps the SAUCE pipeline to concrete files in this repo.
   - Default split size matches paper setting: train 200 / test 50.
 - `sauce_concept_spec.example.json`
   - Example concept spec for dataset builder input.
+- `sauce_export_imagenet_concept.py`
+  - Export one concept's positive/negative images directly from ImageNet validation split.
 - `sauce_prepare_concept_activations.py`
   - Build positive/negative token activation tensors from image folders.
 - `sauce_feature_selection.py`
@@ -45,6 +47,8 @@ This document maps the SAUCE pipeline to concrete files in this repo.
 - `sauce_pipeline.py`
   - Single command pipeline for:
   - activation extraction -> top-k feature selection -> optional intervention smoke test.
+- `run_sauce_imagenet_concept.sh`
+  - One-command wrapper: ImageNet concept export -> SAUCE pipeline.
 - `sae_training/sauce.py`
   - Core intervention hook builder (`build_sauce_intervention_hook`).
 

@@ -18,7 +18,7 @@ def parse_args():
 
 
 def run_cmd(cmd):
-    # 打印并执行命令，方便复现实验过程。
+    # Print and execute command for reproducibility.
     print(" ".join(cmd))
     subprocess.run(cmd, check=True)
 
@@ -28,7 +28,7 @@ def main():
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # 阶段 1：构建正负样本 token 激活。
+    # Stage 1: extract token activations for positive and negative sets.
     run_cmd(
         [
             sys.executable,
@@ -46,7 +46,7 @@ def main():
         ]
     )
 
-    # 阶段 2：按 SAUCE 分数选择 top-k 特征。
+    # Stage 2: select top-k features by SAUCE score.
     run_cmd(
         [
             sys.executable,
@@ -64,7 +64,7 @@ def main():
         ]
     )
 
-    # 阶段 3：可选的干预 smoke test。
+    # Stage 3: optional intervention smoke test on one image.
     if args.example_image is not None:
         run_cmd(
             [

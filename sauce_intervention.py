@@ -31,6 +31,31 @@ def load_feature_indices(args) -> List[int]:
     return [int(x.strip()) for x in args.feature_indices.split(",") if x.strip()]
 
 
+def get_comparable_scores(output, vlm_family: str):
+    # CLIP returns logits_per_image, while LLaVA returns token logits.
+    if hasattr(output, "logits_per_image"):
+        return output.logits_per_image.detach().cpu(), "logits_per_image"
+    if hasattr(output, "logits"):
+        # Use last-token logits as a comparable scalar field for intervention smoke test.
+        return output.logits[:, -1, :].detach().cpu(), "last_token_logits"
+    raise ValueError(f"Unsupported output type for vlm_family={vlm_family}: {type(output)}")
+
+
+def summarize_llava_tokens(scores: torch.Tensor, model, title: str, top_k: int = 5):
+    print(title)
+    if scores.ndim != 2 or scores.shape[0] == 0:
+        print("  (no token scores)")
+        return
+    topk = torch.topk(scores[0], k=top_k, dim=-1).indices.tolist()
+    tokenizer = getattr(model.processor, "tokenizer", None)
+    if tokenizer is None:
+        print(f"  top-{top_k} token ids: {topk}")
+        return
+    toks = tokenizer.convert_ids_to_tokens(topk)
+    print(f"  top-{top_k} token ids: {topk}")
+    print(f"  top-{top_k} tokens: {toks}")
+
+
 @torch.no_grad()
 def main():
     args = parse_args()
@@ -68,16 +93,18 @@ def main():
     base_output = model(return_type="output", **inputs)
     edited_output = model.run_with_hooks(hooks, return_type="output", **inputs)
 
-    base_logits = base_output.logits_per_image.detach().cpu()
-    edited_logits = edited_output.logits_per_image.detach().cpu()
-    diff = edited_logits - base_logits
+    base_scores, score_name = get_comparable_scores(base_output, sae.cfg.vlm_family)
+    edited_scores, _ = get_comparable_scores(edited_output, sae.cfg.vlm_family)
+    diff = edited_scores - base_scores
 
-    print("Base logits_per_image:")
-    print(base_logits)
-    print("\nEdited logits_per_image:")
-    print(edited_logits)
-    print("\nDelta logits_per_image:")
-    print(diff)
+    print(f"Score type: {score_name}")
+    print(f"Score shape: {tuple(base_scores.shape)}")
+    print(f"Mean abs delta: {diff.abs().mean().item():.6f}")
+    print(f"Max abs delta: {diff.abs().max().item():.6f}")
+
+    if score_name == "last_token_logits":
+        summarize_llava_tokens(base_scores, model, "Base top tokens:")
+        summarize_llava_tokens(edited_scores, model, "Edited top tokens:")
 
 
 if __name__ == "__main__":

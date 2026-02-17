@@ -120,7 +120,7 @@ class HookedVisionTransformer:
         transformers_mod = importlib.import_module("transformers")
         load_kwargs = {}
         if torch_dtype is not None:
-            load_kwargs["torch_dtype"] = torch_dtype
+            load_kwargs["dtype"] = torch_dtype
             load_kwargs["low_cpu_mem_usage"] = True
         if vlm_family == "clip":
             # 明确使用 CLIP 类，避免 AutoModel 丢失对比输出。

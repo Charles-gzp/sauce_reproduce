@@ -99,7 +99,7 @@ class SparseAutoencoder(HookedRootModule):
             + self.b_dec
         )
         
-        # Support both legacy normalized loss and SAUCE-style raw L2 reconstruction.
+        # 中文注释：recon 先在特征维 d_in 上做 sum，得到每个样本的重建误差。
         reconstruction_per_token = torch.pow((sae_out - x.float()), 2).sum(dim=-1)
         if self.cfg.reconstruction_loss_type == "normalized_l2":
             token_norm = (x.float().pow(2).sum(dim=-1).sqrt()).clamp_min(1e-8)
@@ -136,9 +136,11 @@ class SparseAutoencoder(HookedRootModule):
             mse_rescaling_factor = (mse_loss / (mse_loss_ghost_resid + 1e-6)).detach()
             mse_loss_ghost_resid = mse_rescaling_factor * mse_loss_ghost_resid
 
+        # 中文注释：recon 最后在 batch 维做 mean。
         mse_loss_ghost_resid = mse_loss_ghost_resid.mean()
         mse_loss = mse_loss.mean()
-        sparsity = torch.abs(feature_acts).sum(dim=1).mean(dim=(0,))
+        # 中文注释：L1 先在 SAE feature 维 d_sae 上做 sum，再在 batch 维做 mean。
+        sparsity = torch.abs(feature_acts).sum(dim=-1).mean()
         l1_loss = self.l1_coefficient * sparsity
         loss = mse_loss + l1_loss + mse_loss_ghost_resid
 

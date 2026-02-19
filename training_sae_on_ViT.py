@@ -53,7 +53,7 @@ cfg = ViTSAERunnerConfig(
     
     # SAE Parameters
     expansion_factor = 64,
-    b_dec_init_method = "mean",
+    b_dec_init_method = "geometric_median",
     
     # Training Parameters
     lr = 0.0004,

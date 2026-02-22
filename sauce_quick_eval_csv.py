@@ -26,7 +26,7 @@ def parse_args():
         default="gen",
         help="gen=caption generation, disc=Yes/No discriminative prompt.",
     )
-    parser.add_argument("--max-new-tokens", type=int, default=48, help="Max new tokens for generation.")
+    parser.add_argument("--max-new-tokens", type=int, default=256, help="Max new tokens for generation.")
     parser.add_argument("--batch-size", type=int, default=1, help="Batch size (use 1 to avoid OOM).")
     parser.add_argument("--feature-indices-path", type=str, default=None, help="Optional selected feature file (.pt).")
     parser.add_argument("--gamma", type=float, default=-0.5, help="Intervention scale if feature indices are provided.")

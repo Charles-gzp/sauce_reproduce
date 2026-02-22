@@ -218,7 +218,12 @@ class SparseAutoencoder(HookedRootModule):
         
         feature_reinit_scale = self.cfg.feature_reinit_scale
         
-        sae_out, _, _, _, _ = self.forward(x)
+        # 中文注释：重采样阶段不需要 ghost-grad，显式传入全 False mask 以避免配置冲突。
+        dead_mask = None
+        if self.cfg.use_ghost_grads:
+            dead_mask = torch.zeros(self.d_sae, dtype=torch.bool, device=self.device)
+        # 中文注释：forward 返回 6 个值，这里只取重建输出用于计算每样本 L2 误差。
+        sae_out, _, _, _, _, _ = self.forward(x, dead_mask)
         per_token_l2_loss = (sae_out - x).pow(2).sum(dim=-1).squeeze()
 
         # Find the dead neurons in this instance. If all neurons are alive, continue

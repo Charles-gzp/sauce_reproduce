@@ -46,11 +46,19 @@ def parse_args():
         default=64,
         help="Max image count per VLM forward pass (for memory control).",
     )
+    parser.add_argument(
+        "--feature-sampling-method",
+        type=str,
+        default="l2",
+        choices=["l2", "none"],
+        help="Feature resampling method in ViT training; use 'none' to disable.",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    feature_sampling_method = None if args.feature_sampling_method == "none" else args.feature_sampling_method
 
     # 中文注释：按论文口径，训练 token 数按 epochs * ImageNet-1k 训练样本数估算。
     total_training_tokens = args.epochs * args.dataset_size
@@ -82,7 +90,8 @@ def main():
         n_batches_in_store=15,
         max_batch_size_for_vit_forward_pass=args.max_vit_batch,
         use_ghost_grads=False,
-        feature_sampling_method=None,
+        # 中文注释：默认启用 l2 重采样；传 --feature-sampling-method none 可关闭。
+        feature_sampling_method=feature_sampling_method,
         feature_sampling_window=64,
         dead_feature_window=64,
         dead_feature_threshold=1e-6,

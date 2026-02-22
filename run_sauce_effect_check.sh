@@ -19,6 +19,10 @@ OUT_DIR="${OUT_DIR:-sauce_outputs/dog_hardneg_far_gm}"
 TOP_K="${TOP_K:-128}"
 PROMPT="${PROMPT:-Please describe this figure}"
 DISC_PROMPT="${DISC_PROMPT:-Does this image contain a dog? Please answer Yes or No.}"
+# 中文注释：判别式评估支持 logits/generate 两种口径，默认 generate 更贴近文本判定。
+DISC_SCORING="${DISC_SCORING:-generate}"
+# 中文注释：生成式统计可传多个关键词，逗号分隔。
+KEYWORDS="${KEYWORDS:-dog}"
 GAMMA="${GAMMA:--0.5}"
 GAMMAS="${GAMMAS:--0.25,-0.5,-1.0,-2.0}"
 ACTS_BATCH_SIZE="${ACTS_BATCH_SIZE:-1}"
@@ -51,6 +55,7 @@ echo "[1/4] Running SAUCE pipeline (prepare activations + feature selection)..."
 echo "[2/4] Quick discriminative eval..."
 "$PYTHON_BIN" sauce_quick_eval_csv.py \
   --eval-mode disc \
+  --disc-scoring "$DISC_SCORING" \
   --sae-path "$SAE_PATH" \
   --image-dir "$TEST_DIR" \
   --num-images "$NUM_IMAGES" \
@@ -58,6 +63,7 @@ echo "[2/4] Quick discriminative eval..."
   --feature-indices-path "$OUT_DIR/selected_feature_indices.pt" \
   --gamma "$GAMMA" \
   --prompt "$DISC_PROMPT" \
+  --keywords "$KEYWORDS" \
   --yes-token Yes \
   --no-token No \
   --out-csv "$OUT_DIR/quick_eval_disc.csv"

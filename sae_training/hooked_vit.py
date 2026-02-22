@@ -11,7 +11,7 @@ from transformers import AutoModel, AutoProcessor
 
 
 def _get_nested_attr(module, attr_path: str):
-    """按点路径读取嵌套属性，支持类似 layers[3] 的索引写法。"""
+    """按点路径读取嵌套属性，支持 layers[3] 这种索引写法。"""
     current = module
     for attr in attr_path.split("."):
         if "[" in attr and attr.endswith("]"):
@@ -23,7 +23,7 @@ def _get_nested_attr(module, attr_path: str):
 
 
 def _resolve_vision_layers(model):
-    """兼容 CLIP/LLaVA 的 vision encoder layer 路径自动探测。"""
+    """兼容 CLIP/LLaVA 等模型，自动定位 vision encoder 的 layers。"""
     candidate_paths = [
         "vision_model.encoder.layers",
         "model.vision_tower.vision_model.encoder.layers",
@@ -38,7 +38,8 @@ def _resolve_vision_layers(model):
                 return layers
         except Exception:
             continue
-    # 兜底：遍历模块名，优先匹配包含 vision 的 encoder.layers。
+
+    # 兜底：遍历模块名，优先匹配 vision 下的 encoder.layers。
     for name, module in model.named_modules():
         if "vision" not in name:
             continue
@@ -46,11 +47,12 @@ def _resolve_vision_layers(model):
             layers = module.encoder.layers
             if hasattr(layers, "__getitem__"):
                 return layers
+
     raise ValueError("未找到可用的 vision encoder layers 路径，请检查模型结构。")
 
 
-def _try_load_multimodal_model(model_name: str):
-    """优先尝试多模态 Auto 类，失败再降级到通用 AutoModel。"""
+def _try_load_multimodal_model(model_name: str, load_kwargs: dict):
+    """优先尝试多模态 Auto 类，失败再回退到通用 AutoModel。"""
     transformers_mod = importlib.import_module("transformers")
     candidate_loader_names = [
         "AutoModelForImageTextToText",
@@ -63,19 +65,20 @@ def _try_load_multimodal_model(model_name: str):
             continue
         loader = getattr(transformers_mod, loader_name)
         try:
-            return loader.from_pretrained(model_name)
+            return loader.from_pretrained(model_name, **load_kwargs)
         except Exception as err:
             last_err = err
             continue
+
     if last_err is not None:
-        return AutoModel.from_pretrained(model_name)
-    return AutoModel.from_pretrained(model_name)
+        return AutoModel.from_pretrained(model_name, **load_kwargs)
+    return AutoModel.from_pretrained(model_name, **load_kwargs)
 
 
 class Hook:
     def __init__(self, block_layer: int, module_name: str, hook_fn: Callable, return_module_output=True):
         if module_name != "resid":
-            raise ValueError(f"暂只支持 module_name='resid'，收到: {module_name}")
+            raise ValueError(f"暂只支持 module_name='resid'，收到 {module_name}")
         self.block_layer = block_layer
         self.module_name = module_name
         self.return_module_output = return_module_output
@@ -83,12 +86,12 @@ class Hook:
 
     def get_full_hook_fn(self, hook_fn: Callable):
         def full_hook_fn(module, module_input, module_output):
-            # 一些模型层输出是 tuple，第一个元素通常是隐藏状态。
+            # 一些层输出是 tuple，第一个元素通常是 hidden states。
             hidden = module_output[0] if isinstance(module_output, (tuple, list)) else module_output
             hook_fn_output = hook_fn(hidden)
             if self.return_module_output:
                 return module_output
-            # 保持输出结构与原层一致，减少 hook 后向前兼容问题。
+            # 保持输出结构与原层一致，避免 hook 后前向不兼容。
             if isinstance(module_output, (tuple, list)):
                 return hook_fn_output
             if isinstance(hook_fn_output, (tuple, list)):
@@ -111,19 +114,19 @@ class HookedVisionTransformer:
         torch_dtype=None,
     ):
         self.vlm_family = vlm_family
-        # 按配置加载 CLIP/LLaVA/LLama-Vision，并使用指定精度减少显存。
         model, processor = self.get_ViT(model_name, vlm_family=vlm_family, torch_dtype=torch_dtype)
         self.model = model.to(device)
         self.processor = processor
+        self._print_dtype_summary(expected_dtype=torch_dtype)
 
     def get_ViT(self, model_name, vlm_family: str = "clip", torch_dtype=None):
         transformers_mod = importlib.import_module("transformers")
-        load_kwargs = {}
+        load_kwargs = {"low_cpu_mem_usage": True}
         if torch_dtype is not None:
-            load_kwargs["dtype"] = torch_dtype
-            load_kwargs["low_cpu_mem_usage"] = True
+            # 中文注释：HF 正确参数名是 torch_dtype（不是 dtype）。
+            load_kwargs["torch_dtype"] = torch_dtype
+
         if vlm_family == "clip":
-            # 明确使用 CLIP 类，避免 AutoModel 丢失对比输出。
             if hasattr(transformers_mod, "CLIPModel") and hasattr(transformers_mod, "CLIPProcessor"):
                 model = transformers_mod.CLIPModel.from_pretrained(model_name, **load_kwargs)
                 processor = transformers_mod.CLIPProcessor.from_pretrained(model_name)
@@ -131,25 +134,36 @@ class HookedVisionTransformer:
             model = AutoModel.from_pretrained(model_name, **load_kwargs)
             processor = AutoProcessor.from_pretrained(model_name)
             return model, processor
+
         if vlm_family == "llava":
-            # 优先使用 LLaVA 专用类，兼容性更好。
             if hasattr(transformers_mod, "LlavaForConditionalGeneration") and hasattr(transformers_mod, "LlavaProcessor"):
                 model = transformers_mod.LlavaForConditionalGeneration.from_pretrained(model_name, **load_kwargs)
                 processor = transformers_mod.LlavaProcessor.from_pretrained(model_name)
                 return model, processor
-            model = _try_load_multimodal_model(model_name)
+            model = _try_load_multimodal_model(model_name, load_kwargs)
             processor = AutoProcessor.from_pretrained(model_name)
             return model, processor
+
         if vlm_family == "llama_vision":
-            # Llama-3.2-Vision 对应的 HF 类名可能为 Mllama*。
             if hasattr(transformers_mod, "MllamaForConditionalGeneration"):
                 model = transformers_mod.MllamaForConditionalGeneration.from_pretrained(model_name, **load_kwargs)
                 processor = AutoProcessor.from_pretrained(model_name)
                 return model, processor
-            model = _try_load_multimodal_model(model_name)
+            model = _try_load_multimodal_model(model_name, load_kwargs)
             processor = AutoProcessor.from_pretrained(model_name)
             return model, processor
+
         raise ValueError(f"不支持的 vlm_family: {vlm_family}")
+
+    def _print_dtype_summary(self, expected_dtype=None):
+        # 中文注释：打印一次模型参数 dtype，确认加载精度是否与 SAE 配置一致。
+        try:
+            param_dtype = next(self.model.parameters()).dtype
+        except StopIteration:
+            param_dtype = "unknown"
+        print(
+            f"[HookedVisionTransformer] model_param_dtype={param_dtype}, requested_dtype={expected_dtype}"
+        )
 
     def _get_model_device(self):
         return next(self.model.parameters()).device
@@ -165,7 +179,7 @@ class HookedVisionTransformer:
         return [""] * n_images
 
     def _format_multimodal_prompt(self, text: str) -> str:
-        # LLaVA 常见输入格式包含 <image> 占位符。
+        # LLaVA/Llama-Vision 常见输入格式包含 <image> 占位符。
         if self.vlm_family in ["llava", "llama_vision"]:
             if "<image>" in text:
                 return text
@@ -173,7 +187,7 @@ class HookedVisionTransformer:
         return text
 
     def prepare_inputs(self, images, text="", device=None):
-        # 统一封装不同 VLM 的 processor 调用方式。
+        # 统一封装不同 VLM 的 processor 调用。
         n_images = len(images) if isinstance(images, list) else 1
         text_inputs = self._normalize_text_inputs(text, n_images)
         text_inputs = [self._format_multimodal_prompt(t) for t in text_inputs]
@@ -216,7 +230,7 @@ class HookedVisionTransformer:
             list_of_hooks.append(hook)
         return cache_dict, list_of_hooks
 
-    @torch.no_grad
+    @torch.no_grad()
     def run_with_hooks(self, list_of_hooks: List[Hook], *args, return_type="output", **kwargs):
         with self.hooks(list_of_hooks) as hooked_model:
             with torch.no_grad():

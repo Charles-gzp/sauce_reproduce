@@ -32,6 +32,11 @@ def train_sae_on_vision_transformer(
         wandb.init(project="mats-hugo")
     if feature_sampling_method is not None:
         feature_sampling_method = feature_sampling_method.lower()
+    # 中文注释：ViT 路径目前只落地了 l2 重采样，anthropic 在此明确报错，避免“配置了但未生效”。
+    if feature_sampling_method == "anthropic":
+        raise ValueError("ViT 训练路径暂不支持 feature_sampling_method='anthropic'，请改为 'l2' 或 None。")
+    if feature_sampling_method not in [None, "l2"]:
+        raise ValueError(f"Unsupported feature_sampling_method for ViT training: {feature_sampling_method}")
 
     
     total_training_steps = total_training_tokens // batch_size
@@ -64,25 +69,6 @@ def train_sae_on_vision_transformer(
         sparse_autoencoder.train()
         # Make sure the W_dec is still zero-norm
         sparse_autoencoder.set_decoder_norm_to_unit_norm()
-            
-        # after resampling, reset the sparsity:
-        if (n_training_steps + 1) % sparse_autoencoder.cfg.feature_sampling_window == 0: # feature_sampling_window divides dead_sampling_window
-            
-            feature_sparsity = act_freq_scores / n_frac_active_tokens
-            log_feature_sparsity = torch.log10(feature_sparsity + 1e-10).detach().cpu()
-
-            if sparse_autoencoder.cfg.log_to_wandb:
-                wandb_histogram = wandb.Histogram(log_feature_sparsity.numpy())
-                wandb.log(
-                    {   
-                        "metrics/mean_log10_feature_sparsity": log_feature_sparsity.mean().item(),
-                        "plots/feature_density_line_chart": wandb_histogram,
-                    },
-                    step=n_training_steps,
-                )
-            
-            act_freq_scores = torch.zeros(sparse_autoencoder.cfg.d_sae, device=sparse_autoencoder.cfg.device)
-            n_frac_active_tokens = 0
 
 
         scheduler.step()
@@ -90,6 +76,39 @@ def train_sae_on_vision_transformer(
         
         ghost_grad_neuron_mask = (n_forward_passes_since_fired > sparse_autoencoder.cfg.dead_feature_window).bool()
         sae_in = activation_store.next_batch()
+
+        # 中文注释：按窗口统计稀疏性，并在 ViT 路径执行 l2 重采样。
+        n_resampled_neurons = 0
+        if (n_training_steps + 1) % sparse_autoencoder.cfg.feature_sampling_window == 0:
+            denom = max(int(n_frac_active_tokens), 1)
+            feature_sparsity = act_freq_scores / denom
+            log_feature_sparsity = torch.log10(feature_sparsity + 1e-10).detach().cpu()
+
+            if feature_sampling_method == "l2":
+                n_resampled_neurons = sparse_autoencoder.resample_neurons_l2(
+                    x=sae_in,
+                    feature_sparsity=feature_sparsity,
+                    optimizer=optimizer,
+                )
+                print(
+                    f"[feature_sampling=l2] step={n_training_steps} "
+                    f"n_resampled_neurons={int(n_resampled_neurons)}"
+                )
+
+            if sparse_autoencoder.cfg.log_to_wandb:
+                wandb_histogram = wandb.Histogram(log_feature_sparsity.numpy())
+                wandb.log(
+                    {
+                        "metrics/mean_log10_feature_sparsity": log_feature_sparsity.mean().item(),
+                        "plots/feature_density_line_chart": wandb_histogram,
+                        "sparsity/n_resampled_neurons": int(n_resampled_neurons),
+                    },
+                    step=n_training_steps,
+                )
+
+            # 中文注释：窗口结束后重置统计量，进入下一窗口重新累计。
+            act_freq_scores = torch.zeros(sparse_autoencoder.cfg.d_sae, device=sparse_autoencoder.cfg.device)
+            n_frac_active_tokens = 0
         
         # Forward and Backward Passes
         sae_out, feature_acts, loss, mse_loss, l1_loss, ghost_grad_loss = sparse_autoencoder(

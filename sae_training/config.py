@@ -251,6 +251,19 @@ class ViTSAERunnerConfig():
             raise ValueError(
                 f"sae_target_token must be class or last. Got {self.sae_target_token}"
             )
+        # 中文注释：以 sae_target_token 作为主配置来源，自动同步 class_token，避免双字段冲突。
+        if self.sae_target_token == "class" and not self.class_token:
+            print(
+                "Warning: class_token=False but sae_target_token='class'. "
+                "Overriding class_token=True for consistency."
+            )
+            self.class_token = True
+        elif self.sae_target_token == "last" and self.class_token:
+            print(
+                "Warning: class_token=True but sae_target_token='last'. "
+                "Overriding class_token=False for consistency."
+            )
+            self.class_token = False
         if self.reconstruction_loss_type not in ["normalized_l2", "l2"]:
             raise ValueError(
                 "reconstruction_loss_type must be normalized_l2 or l2. "

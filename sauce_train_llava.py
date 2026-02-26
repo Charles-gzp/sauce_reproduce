@@ -4,6 +4,7 @@ from pathlib import Path
 import torch
 
 from sae_training.config import ViTSAERunnerConfig
+from sae_training.sauce import get_token_index
 from sae_training.vit_runner import vision_transformer_sae_runner
 
 
@@ -30,6 +31,13 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=4e-4, help="Learning rate.")
     parser.add_argument("--l1-coef", type=float, default=8e-5, help="L1 coefficient (alpha).")
     parser.add_argument("--expansion-factor", type=int, default=64, help="SAE expansion factor.")
+    parser.add_argument(
+        "--sae-target-token",
+        type=str,
+        default="class",
+        choices=["class", "last"],
+        help="SAE target token; class=CLS(global), last=last patch token.",
+    )
     parser.add_argument(
         "--b-dec-init-method",
         type=str,
@@ -66,8 +74,9 @@ def main():
     # 中文注释：这里集中定义 SAE 训练配置，后续 checkpoint 会完整保存该 cfg。
     cfg = ViTSAERunnerConfig(
         vlm_family="llava",
-        class_token=False,
-        sae_target_token="last",
+        # 中文注释：默认使用 CLS 全局 token，避免误用最后一个 patch token。
+        class_token=(args.sae_target_token == "class"),
+        sae_target_token=args.sae_target_token,
         image_caption_prompt="Please describe this figure",
         image_width=224,
         image_height=224,
@@ -105,6 +114,12 @@ def main():
         checkpoint_path=args.checkpoint_root,
         # 中文注释：A800 上通常使用 bf16 以降低显存压力。
         dtype=torch.bfloat16,
+    )
+
+    token_index = get_token_index(class_token=cfg.class_token, sae_target_token=cfg.sae_target_token)
+    print(
+        f"[SAE Train Config] class_token={cfg.class_token}, "
+        f"sae_target_token={cfg.sae_target_token}, token_index={token_index}"
     )
 
     sparse_autoencoder, _ = vision_transformer_sae_runner(cfg)

@@ -31,6 +31,7 @@ MODEL_NAME="${MODEL_NAME:-llava-hf/llava-1.5-7b-hf}"
 EPOCHS="${EPOCHS:-2}"
 BATCH_SIZE="${BATCH_SIZE:-1024}"
 MAX_VIT_BATCH="${MAX_VIT_BATCH:-64}"
+SAE_TARGET_TOKEN="${SAE_TARGET_TOKEN:-class}"
 
 echo "[1/4] 安装依赖..."
 "$PYTHON_BIN" -m pip install -U pip
@@ -43,6 +44,7 @@ export WANDB_MODE="${WANDB_MODE:-disabled}"
   --dataset-path "$DATASET_PATH" \
   --epochs "$EPOCHS" \
   --batch-size "$BATCH_SIZE" \
+  --sae-target-token "$SAE_TARGET_TOKEN" \
   --device "$DEVICE" \
   --checkpoint-root "$CHECKPOINT_ROOT" \
   --max-vit-batch "$MAX_VIT_BATCH"

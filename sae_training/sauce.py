@@ -13,13 +13,13 @@ class SauceFeatureSelectionResult:
 
 
 def get_token_index(class_token: bool, sae_target_token: str) -> int:
-    # Keep backward compatibility for old configs that only set class_token=True.
-    if class_token:
-        return 0
+    # 中文注释：优先使用 sae_target_token；class_token 仅用于兼容旧配置。
     if sae_target_token == "class":
         return 0
     if sae_target_token == "last":
         return -1
+    if class_token:
+        return 0
     raise ValueError(f"Unsupported sae_target_token: {sae_target_token}")
 
 

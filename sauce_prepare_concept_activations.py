@@ -59,6 +59,11 @@ def main():
     sae = SparseAutoencoder.load_from_pretrained(args.sae_path).eval()
     cfg = sae.cfg
     prompt = args.prompt if args.prompt is not None else (cfg.image_caption_prompt or "Please describe this figure")
+    token_index = get_token_index(class_token=cfg.class_token, sae_target_token=cfg.sae_target_token)
+    print(
+        f"[Token Config] class_token={cfg.class_token}, "
+        f"sae_target_token={cfg.sae_target_token}, token_index={token_index}"
+    )
 
     # 按训练配置选择对应的 VLM 家族（CLIP/LLaVA），并使用相同精度。
     model = HookedVisionTransformer(

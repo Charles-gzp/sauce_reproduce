@@ -38,8 +38,8 @@ cfg = ViTSAERunnerConfig(
     
     # Data Generating Function (Model + Training Distibuion)
     vlm_family = "llava",
-    class_token = False,
-    sae_target_token = "last",
+    class_token = True,
+    sae_target_token = "class",
     image_caption_prompt = "Please describe this figure",
     image_width = 224,
     image_height = 224,

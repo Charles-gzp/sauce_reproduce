@@ -208,6 +208,14 @@ def main():
     keywords = parse_keywords(args.keyword, args.keywords)
 
     sae = SparseAutoencoder.load_from_pretrained(args.sae_path).eval()
+    token_index = get_token_index(
+        class_token=sae.cfg.class_token,
+        sae_target_token=sae.cfg.sae_target_token,
+    )
+    print(
+        f"[Token Config] class_token={sae.cfg.class_token}, "
+        f"sae_target_token={sae.cfg.sae_target_token}, token_index={token_index}"
+    )
     model = HookedVisionTransformer(
         sae.cfg.model_name,
         device=str(sae.cfg.device),
@@ -269,10 +277,6 @@ def main():
             )
 
     if args.feature_indices_path is not None:
-        token_index = get_token_index(
-            class_token=sae.cfg.class_token,
-            sae_target_token=sae.cfg.sae_target_token,
-        )
         selected_indices = torch.load(args.feature_indices_path, map_location="cpu").tolist()
         hook_fn = build_sauce_intervention_hook(
             sparse_autoencoder=sae,

@@ -76,6 +76,10 @@ def main():
         class_token=sae.cfg.class_token,
         sae_target_token=sae.cfg.sae_target_token,
     )
+    print(
+        f"[Token Config] class_token={sae.cfg.class_token}, "
+        f"sae_target_token={sae.cfg.sae_target_token}, token_index={token_index}"
+    )
     feature_indices = load_feature_indices(args)
     intervention_hook_fn = build_sauce_intervention_hook(
         sparse_autoencoder=sae,

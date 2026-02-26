@@ -85,6 +85,7 @@ def generate_texts(
     prompt: str,
     max_new_tokens: int,
     batch_size: int,
+    hooks: Optional[List[Hook]] = None,
 ):
     outputs = []
     for start in range(0, len(image_paths), batch_size):
@@ -93,11 +94,19 @@ def generate_texts(
         text_inputs = [prompt] * len(images)
         inputs = model.prepare_inputs(images=images, text=text_inputs)
 
-        generated_ids = model.model.generate(
-            **inputs,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,
-        )
+        if hooks is None:
+            generated_ids = model.model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
+            )
+        else:
+            with model.hooks(hooks):
+                generated_ids = model.model.generate(
+                    **inputs,
+                    max_new_tokens=max_new_tokens,
+                    do_sample=False,
+                )
         # 中文注释：仅解码“新生成”的 token，避免把原 prompt（含 Yes/No）混进答案解析。
         if "input_ids" in inputs:
             if "attention_mask" in inputs:
@@ -187,6 +196,7 @@ def score_yes_no_generate(
         prompt=prompt,
         max_new_tokens=max_new_tokens,
         batch_size=batch_size,
+        hooks=None,
     )
     preds: List[Optional[bool]] = [parse_yes_no_from_text(ans, yes_token=yes_token, no_token=no_token) for ans in answers]
     return answers, preds
@@ -299,25 +309,19 @@ def main():
                         no_token_id=no_id,
                     )
             else:
-                edited_disc_answers = []
-                edited_preds = []
-                for start in range(0, len(image_paths), args.batch_size):
-                    batch_paths = image_paths[start : start + args.batch_size]
-                    images = [Image.open(p).convert("RGB") for p in batch_paths]
-                    text_inputs = [args.prompt] * len(images)
-                    inputs = model.prepare_inputs(images=images, text=text_inputs)
-                    with model.hooks(hooks):
-                        generated_ids = model.model.generate(
-                            **inputs,
-                            max_new_tokens=args.max_new_tokens,
-                            do_sample=False,
-                        )
-                    decoded = model.processor.batch_decode(generated_ids, skip_special_tokens=True)
-                    batch_answers = [t.strip() for t in decoded]
-                    edited_disc_answers.extend(batch_answers)
-                    edited_preds.extend(
-                        [parse_yes_no_from_text(ans, yes_token=args.yes_token, no_token=args.no_token) for ans in batch_answers]
-                    )
+                # 中文注释：与 baseline 完全复用同一生成与解码路径，避免评估口径不一致。
+                edited_disc_answers = generate_texts(
+                    model=model,
+                    image_paths=image_paths,
+                    prompt=args.prompt,
+                    max_new_tokens=args.max_new_tokens,
+                    batch_size=args.batch_size,
+                    hooks=hooks,
+                )
+                edited_preds = [
+                    parse_yes_no_from_text(ans, yes_token=args.yes_token, no_token=args.no_token)
+                    for ans in edited_disc_answers
+                ]
 
     out_csv = Path(args.out_csv)
     out_csv.parent.mkdir(parents=True, exist_ok=True)

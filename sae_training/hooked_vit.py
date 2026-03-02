@@ -75,6 +75,37 @@ def _try_load_multimodal_model(model_name: str, load_kwargs: dict):
     return AutoModel.from_pretrained(model_name, **load_kwargs)
 
 
+def _normalize_image_size(value):
+    if isinstance(value, (tuple, list)):
+        return int(value[0])
+    return int(value)
+
+
+def _set_llava_full_vision_strategy(model):
+    """
+    中文注释：强制 LLaVA 使用 full 视觉特征选择策略，保留 CLS token。
+    这对在 CLS 上做 SAE 干预是必要条件。
+    """
+    if not hasattr(model, "config"):
+        return
+    cfg = model.config
+    if hasattr(cfg, "vision_feature_select_strategy"):
+        cfg.vision_feature_select_strategy = "full"
+    if hasattr(cfg, "vision_config") and hasattr(cfg, "image_seq_length"):
+        vision_cfg = cfg.vision_config
+        if hasattr(vision_cfg, "image_size") and hasattr(vision_cfg, "patch_size"):
+            image_size = _normalize_image_size(vision_cfg.image_size)
+            patch_size = _normalize_image_size(vision_cfg.patch_size)
+            n_patches = (image_size // patch_size) ** 2
+            # 中文注释：full 策略会保留 CLS，因此序列长度应为 patch 数 + 1。
+            cfg.image_seq_length = n_patches + 1
+    print(
+        "[LLaVA Config] "
+        f"vision_feature_select_strategy={getattr(cfg, 'vision_feature_select_strategy', 'NA')}, "
+        f"image_seq_length={getattr(cfg, 'image_seq_length', 'NA')}"
+    )
+
+
 class Hook:
     def __init__(self, block_layer: int, module_name: str, hook_fn: Callable, return_module_output=True):
         if module_name != "resid":
@@ -139,9 +170,11 @@ class HookedVisionTransformer:
             if hasattr(transformers_mod, "LlavaForConditionalGeneration") and hasattr(transformers_mod, "LlavaProcessor"):
                 model = transformers_mod.LlavaForConditionalGeneration.from_pretrained(model_name, **load_kwargs)
                 processor = transformers_mod.LlavaProcessor.from_pretrained(model_name)
+                _set_llava_full_vision_strategy(model)
                 return model, processor
             model = _try_load_multimodal_model(model_name, load_kwargs)
             processor = AutoProcessor.from_pretrained(model_name)
+            _set_llava_full_vision_strategy(model)
             return model, processor
 
         if vlm_family == "llama_vision":

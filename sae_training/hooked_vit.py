@@ -106,6 +106,39 @@ def _set_llava_full_vision_strategy(model):
     )
 
 
+def _sync_llava_processor_with_model(processor, model):
+    """
+    中文注释：同步 processor 与 model 的视觉 token 配置，
+    避免出现 tokens 数与 image features 数不一致。
+    """
+    if not hasattr(model, "config"):
+        return
+    cfg = model.config
+    strategy = getattr(cfg, "vision_feature_select_strategy", None)
+
+    # 同步 patch_size（有些版本会从 processor 上读取）
+    if hasattr(cfg, "vision_config") and hasattr(cfg.vision_config, "patch_size"):
+        patch_size = _normalize_image_size(cfg.vision_config.patch_size)
+        if hasattr(processor, "patch_size"):
+            processor.patch_size = patch_size
+        image_processor = getattr(processor, "image_processor", None)
+        if image_processor is not None and hasattr(image_processor, "patch_size"):
+            image_processor.patch_size = patch_size
+
+    # 同步特征选择策略与额外 image token 数（CLS=1）
+    if strategy is not None and hasattr(processor, "vision_feature_select_strategy"):
+        processor.vision_feature_select_strategy = strategy
+    if hasattr(processor, "num_additional_image_tokens"):
+        processor.num_additional_image_tokens = 1 if strategy == "full" else 0
+
+    print(
+        "[LLaVA Processor] "
+        f"patch_size={getattr(processor, 'patch_size', 'NA')}, "
+        f"vision_feature_select_strategy={getattr(processor, 'vision_feature_select_strategy', 'NA')}, "
+        f"num_additional_image_tokens={getattr(processor, 'num_additional_image_tokens', 'NA')}"
+    )
+
+
 class Hook:
     def __init__(self, block_layer: int, module_name: str, hook_fn: Callable, return_module_output=True):
         if module_name != "resid":
@@ -171,10 +204,12 @@ class HookedVisionTransformer:
                 model = transformers_mod.LlavaForConditionalGeneration.from_pretrained(model_name, **load_kwargs)
                 processor = transformers_mod.LlavaProcessor.from_pretrained(model_name)
                 _set_llava_full_vision_strategy(model)
+                _sync_llava_processor_with_model(processor, model)
                 return model, processor
             model = _try_load_multimodal_model(model_name, load_kwargs)
             processor = AutoProcessor.from_pretrained(model_name)
             _set_llava_full_vision_strategy(model)
+            _sync_llava_processor_with_model(processor, model)
             return model, processor
 
         if vlm_family == "llama_vision":
